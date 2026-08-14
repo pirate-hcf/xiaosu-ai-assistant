@@ -1,0 +1,27 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: xiaosu
+
+logging:
+  file:
+    path: ${LOG_DIR:logs}
+
+xiaosu:
+  llm:
+    base-url: ${LLM_BASE_URL:}
+    api-key: ${LLM_API_KEY:}
+    chat-model: ${LLM_CHAT_MODEL:}
+    embedding-model: ${LLM_EMBEDDING_MODEL:}
+    timeout: ${LLM_TIMEOUT_SECONDS:20}s
+  dingtalk:
+    client-id: ${DINGTALK_CLIENT_ID:}
+    client-secret: ${DINGTALK_CLIENT_SECRET:}
+    card-template-id: ${DINGTALK_CARD_TEMPLATE_ID:}
+  storage:
+    upload-directory: ${UPLOAD_DIR:uploads}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}
