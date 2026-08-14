@@ -32,6 +32,8 @@ xiaosu:
     card-template-id: ${DINGTALK_CARD_TEMPLATE_ID:}
   storage:
     upload-directory: ${UPLOAD_DIR:uploads}
+  mock-data:
+    directory: ${MOCK_DATA_DIR:data/mock}
   admin:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:}

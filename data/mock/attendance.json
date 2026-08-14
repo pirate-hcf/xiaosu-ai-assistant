@@ -1,0 +1,22 @@
+[
+  {"id":"ATT-001","employeeId":"001","date":"2026-06-08","status":"NORMAL","checkInTime":"08:55:00","checkOutTime":"18:03:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-002","employeeId":"001","date":"2026-06-09","status":"LATE","checkInTime":"09:18:00","checkOutTime":"18:10:00","overtimeHours":0.0,"note":"地铁延误"},
+  {"id":"ATT-003","employeeId":"001","date":"2026-06-10","status":"LEAVE","checkInTime":null,"checkOutTime":null,"overtimeHours":0.0,"note":"年假"},
+  {"id":"ATT-004","employeeId":"001","date":"2026-06-11","status":"NORMAL","checkInTime":"08:49:00","checkOutTime":"20:31:00","overtimeHours":2.5,"note":"版本发布加班"},
+  {"id":"ATT-005","employeeId":"001","date":"2026-06-12","status":"NORMAL","checkInTime":"08:58:00","checkOutTime":"18:06:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-006","employeeId":"001","date":"2026-06-13","status":"NORMAL","checkInTime":"09:02:00","checkOutTime":"12:05:00","overtimeHours":3.0,"note":"周末加班"},
+  {"id":"ATT-007","employeeId":"002","date":"2026-06-08","status":"NORMAL","checkInTime":"08:50:00","checkOutTime":"18:00:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-008","employeeId":"002","date":"2026-06-09","status":"NORMAL","checkInTime":"08:52:00","checkOutTime":"18:05:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-009","employeeId":"003","date":"2026-06-08","status":"LATE","checkInTime":"09:12:00","checkOutTime":"18:22:00","overtimeHours":0.0,"note":"临时就医"},
+  {"id":"ATT-010","employeeId":"003","date":"2026-06-10","status":"NORMAL","checkInTime":"08:47:00","checkOutTime":"19:46:00","overtimeHours":1.5,"note":"月度结账"},
+  {"id":"ATT-011","employeeId":"004","date":"2026-06-09","status":"NORMAL","checkInTime":"08:45:00","checkOutTime":"18:30:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-012","employeeId":"004","date":"2026-06-11","status":"ABSENT","checkInTime":null,"checkOutTime":null,"overtimeHours":0.0,"note":"未打卡待确认"},
+  {"id":"ATT-013","employeeId":"005","date":"2026-06-10","status":"LEAVE","checkInTime":null,"checkOutTime":null,"overtimeHours":0.0,"note":"病假"},
+  {"id":"ATT-014","employeeId":"005","date":"2026-06-12","status":"NORMAL","checkInTime":"08:56:00","checkOutTime":"21:02:00","overtimeHours":3.0,"note":"活动上线"},
+  {"id":"ATT-015","employeeId":"006","date":"2026-06-08","status":"NORMAL","checkInTime":"08:51:00","checkOutTime":"18:09:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-016","employeeId":"007","date":"2026-06-09","status":"NORMAL","checkInTime":"08:48:00","checkOutTime":"20:04:00","overtimeHours":2.0,"note":"回归测试"},
+  {"id":"ATT-017","employeeId":"008","date":"2026-06-11","status":"LATE","checkInTime":"09:25:00","checkOutTime":"18:35:00","overtimeHours":0.0,"note":"供应商会议"},
+  {"id":"ATT-018","employeeId":"009","date":"2026-06-12","status":"NORMAL","checkInTime":"08:53:00","checkOutTime":"18:01:00","overtimeHours":0.0,"note":""},
+  {"id":"ATT-019","employeeId":"010","date":"2026-06-08","status":"LEAVE","checkInTime":null,"checkOutTime":null,"overtimeHours":0.0,"note":"产假"},
+  {"id":"ATT-020","employeeId":"011","date":"2026-06-14","status":"NORMAL","checkInTime":"10:00:00","checkOutTime":"15:00:00","overtimeHours":5.0,"note":"机房维护"}
+]

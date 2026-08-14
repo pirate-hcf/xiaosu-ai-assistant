@@ -1,0 +1,17 @@
+[
+  {"id":"ORD-1001","customerName":"星海科技","orderDate":"2026-06-06","amount":12800.00,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1002","customerName":"远峰贸易","orderDate":"2026-06-07","amount":5600.50,"status":"CANCELLED","refundAmount":0.00},
+  {"id":"ORD-1003","customerName":"青禾教育","orderDate":"2026-06-08","amount":9800.00,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1004","customerName":"云帆网络","orderDate":"2026-06-09","amount":3200.00,"status":"REFUNDED","refundAmount":3200.00},
+  {"id":"ORD-1005","customerName":"晨光设计","orderDate":"2026-06-10","amount":7600.80,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1006","customerName":"启明咨询","orderDate":"2026-06-11","amount":4500.00,"status":"PENDING","refundAmount":0.00},
+  {"id":"ORD-1007","customerName":"瀚海物流","orderDate":"2026-06-12","amount":15600.00,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1008","customerName":"新锐传媒","orderDate":"2026-06-13","amount":2100.00,"status":"REFUNDED","refundAmount":800.00},
+  {"id":"ORD-1009","customerName":"华辰制造","orderDate":"2026-06-14","amount":23800.00,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1010","customerName":"博雅文化","orderDate":"2026-06-15","amount":6800.00,"status":"CANCELLED","refundAmount":0.00},
+  {"id":"ORD-1011","customerName":"安澜医疗","orderDate":"2026-06-16","amount":19500.00,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1012","customerName":"极光软件","orderDate":"2026-06-18","amount":11200.00,"status":"REFUNDED","refundAmount":11200.00},
+  {"id":"ORD-1013","customerName":"松林食品","orderDate":"2026-06-20","amount":4300.25,"status":"PAID","refundAmount":0.00},
+  {"id":"ORD-1014","customerName":"皓月能源","orderDate":"2026-06-22","amount":28700.00,"status":"PENDING","refundAmount":0.00},
+  {"id":"ORD-1015","customerName":"智联办公","orderDate":"2026-06-25","amount":8900.00,"status":"PAID","refundAmount":0.00}
+]

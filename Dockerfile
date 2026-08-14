@@ -6,6 +6,7 @@ WORKDIR /app
 RUN mkdir -p uploads logs && chown -R xiaosu:xiaosu /app
 
 COPY --chown=xiaosu:xiaosu target/*.jar app.jar
+COPY --chown=xiaosu:xiaosu data/mock /app/data/mock
 
 USER xiaosu
 EXPOSE 8080
