@@ -1,0 +1,14 @@
+[
+  {"id":"001","name":"张伟","department":"研发部","title":"后端工程师","hireDate":"2023-03-06","status":"ACTIVE"},
+  {"id":"002","name":"李娜","department":"人力资源部","title":"招聘专员","hireDate":"2022-09-19","status":"ACTIVE"},
+  {"id":"003","name":"王强","department":"财务部","title":"会计","hireDate":"2021-05-10","status":"ACTIVE"},
+  {"id":"004","name":"陈晨","department":"销售部","title":"销售经理","hireDate":"2020-11-02","status":"ACTIVE"},
+  {"id":"005","name":"刘洋","department":"运营部","title":"运营专员","hireDate":"2024-01-15","status":"ACTIVE"},
+  {"id":"006","name":"赵敏","department":"产品部","title":"产品经理","hireDate":"2022-04-11","status":"ACTIVE"},
+  {"id":"007","name":"周杰","department":"质量保障部","title":"测试工程师","hireDate":"2023-07-03","status":"ACTIVE"},
+  {"id":"008","name":"孙婷","department":"采购部","title":"采购专员","hireDate":"2021-12-20","status":"ACTIVE"},
+  {"id":"009","name":"吴磊","department":"客户成功部","title":"客户顾问","hireDate":"2024-06-17","status":"ACTIVE"},
+  {"id":"010","name":"郑悦","department":"法务部","title":"法务顾问","hireDate":"2020-08-24","status":"ON_LEAVE"},
+  {"id":"011","name":"黄凯","department":"信息技术部","title":"系统管理员","hireDate":"2019-02-18","status":"ACTIVE"},
+  {"id":"012","name":"林晓","department":"市场部","title":"内容策划","hireDate":"2022-10-31","status":"INACTIVE"}
+]
