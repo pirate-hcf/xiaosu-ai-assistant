@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: xiaosu
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:11MB}
+      resolve-lazily: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/xiaosu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${SPRING_DATASOURCE_USERNAME:xiaosu}
@@ -32,6 +37,7 @@ xiaosu:
     card-template-id: ${DINGTALK_CARD_TEMPLATE_ID:}
   storage:
     upload-directory: ${UPLOAD_DIR:uploads}
+    max-file-size: ${MAX_UPLOAD_SIZE:10MB}
   mock-data:
     directory: ${MOCK_DATA_DIR:data/mock}
   admin:

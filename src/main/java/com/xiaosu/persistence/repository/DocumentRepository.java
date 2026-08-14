@@ -3,6 +3,7 @@ package com.xiaosu.persistence.repository;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,6 +56,16 @@ public class DocumentRepository {
                 .param("canonicalName", canonicalName)
                 .query(PersistenceRowMappers.DOCUMENT)
                 .optional();
+    }
+
+    public List<DocumentRecord> findAllNotDeleted() {
+        return jdbcClient.sql("""
+                SELECT * FROM documents
+                WHERE deleted_at IS NULL
+                ORDER BY created_at DESC, canonical_name
+                """)
+                .query(PersistenceRowMappers.DOCUMENT)
+                .list();
     }
 
     public boolean setActiveVersion(UUID documentId, UUID versionId, Instant updatedAt) {
