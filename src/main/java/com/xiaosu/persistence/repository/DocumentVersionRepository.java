@@ -66,4 +66,16 @@ public class DocumentVersionRepository {
                 .query(PersistenceRowMappers.DOCUMENT_VERSION)
                 .list();
     }
+
+    public Optional<DocumentVersionRecord> findLatestByDocumentId(UUID documentId) {
+        return jdbcClient.sql("""
+                SELECT * FROM document_versions
+                WHERE document_id = :documentId
+                ORDER BY version_no DESC
+                LIMIT 1
+                """)
+                .param("documentId", documentId.toString())
+                .query(PersistenceRowMappers.DOCUMENT_VERSION)
+                .optional();
+    }
 }

@@ -43,6 +43,8 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10MB}
+      MAX_UPLOAD_REQUEST_SIZE: ${MAX_UPLOAD_REQUEST_SIZE:-11MB}
       LOG_DIR: /app/logs
       TZ: Asia/Shanghai
     ports:
