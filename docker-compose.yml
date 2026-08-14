@@ -45,6 +45,8 @@ services:
       UPLOAD_DIR: /app/uploads
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10MB}
       MAX_UPLOAD_REQUEST_SIZE: ${MAX_UPLOAD_REQUEST_SIZE:-11MB}
+      CHUNK_MAX_TOKENS: ${CHUNK_MAX_TOKENS:-400}
+      CHUNK_OVERLAP_TOKENS: ${CHUNK_OVERLAP_TOKENS:-60}
       LOG_DIR: /app/logs
       TZ: Asia/Shanghai
     ports:
