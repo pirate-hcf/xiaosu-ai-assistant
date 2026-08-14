@@ -1,0 +1,8 @@
+.git
+.idea
+.env
+target/*
+!target/*.jar
+logs
+uploads
+*.iml

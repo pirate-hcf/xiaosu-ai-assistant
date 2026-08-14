@@ -16,4 +16,5 @@ if [[ ! -f compose.yaml && ! -f compose.yml && ! -f docker-compose.yaml && ! -f 
   exit 1
 fi
 
+./mvnw -q package -DskipTests
 exec docker compose up --detach --build "$@"

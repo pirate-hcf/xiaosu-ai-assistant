@@ -1,7 +1,11 @@
 package com.xiaosu.config;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import javax.sql.DataSource;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -11,19 +15,32 @@ public class ApplicationHealthService {
 
     private final LlmProperties llmProperties;
     private final DingTalkProperties dingTalkProperties;
+    private final DataSource dataSource;
 
     public ApplicationHealthService(
             LlmProperties llmProperties,
-            DingTalkProperties dingTalkProperties) {
+            DingTalkProperties dingTalkProperties,
+            DataSource dataSource) {
         this.llmProperties = llmProperties;
         this.dingTalkProperties = dingTalkProperties;
+        this.dataSource = dataSource;
     }
 
     public ReadinessStatus readiness() {
+        boolean mysqlUp = isMySqlUp();
         Map<String, DependencyStatus> components = new LinkedHashMap<>();
+        components.put("mysql", new DependencyStatus(mysqlUp ? "up" : "down"));
         components.put("llm", dependencyStatus(isLlmConfigured()));
         components.put("dingtalk", dependencyStatus(isDingTalkConfigured()));
-        return new ReadinessStatus("UP", components);
+        return new ReadinessStatus(mysqlUp ? "UP" : "DOWN", components);
+    }
+
+    private boolean isMySqlUp() {
+        try (Connection connection = dataSource.getConnection()) {
+            return connection.isValid(2);
+        } catch (SQLException exception) {
+            return false;
+        }
     }
 
     private boolean isLlmConfigured() {
