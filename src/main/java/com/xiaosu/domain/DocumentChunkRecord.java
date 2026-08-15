@@ -1,4 +1,4 @@
-package com.xiaosu.persistence.model;
+package com.xiaosu.domain;
 
 import java.util.UUID;
 

@@ -9,33 +9,33 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.xiaosu.persistence.PersistenceTransaction;
-import com.xiaosu.persistence.exception.DuplicateRecordException;
-import com.xiaosu.persistence.model.DocumentRecord;
-import com.xiaosu.persistence.model.DocumentVersionRecord;
-import com.xiaosu.persistence.model.DocumentVersionStatus;
-import com.xiaosu.persistence.repository.DocumentRepository;
-import com.xiaosu.persistence.repository.DocumentVersionRepository;
+import com.xiaosu.domain.DocumentRecord;
+import com.xiaosu.domain.DocumentVersionRecord;
+import com.xiaosu.domain.DocumentVersionStatus;
+import com.xiaosu.domain.DuplicateRecordException;
+import com.xiaosu.service.DocumentService;
+import com.xiaosu.service.DocumentVersionService;
+import com.xiaosu.service.DocumentWorkflowService;
 
 @Service
 public class DocumentUploadService {
 
-    private final DocumentRepository documentRepository;
-    private final DocumentVersionRepository versionRepository;
-    private final PersistenceTransaction transaction;
+    private final DocumentService documentService;
+    private final DocumentVersionService versionService;
+    private final DocumentWorkflowService workflowService;
     private final FileStore fileStore;
     private final DocumentIndexDispatcher indexDispatcher;
     private final Clock clock;
 
     public DocumentUploadService(
-            DocumentRepository documentRepository,
-            DocumentVersionRepository versionRepository,
-            PersistenceTransaction transaction,
+            DocumentService documentService,
+            DocumentVersionService versionService,
+            DocumentWorkflowService workflowService,
             FileStore fileStore,
             DocumentIndexDispatcher indexDispatcher) {
-        this.documentRepository = documentRepository;
-        this.versionRepository = versionRepository;
-        this.transaction = transaction;
+        this.documentService = documentService;
+        this.versionService = versionService;
+        this.workflowService = workflowService;
         this.fileStore = fileStore;
         this.indexDispatcher = indexDispatcher;
         this.clock = Clock.systemUTC();
@@ -43,7 +43,7 @@ public class DocumentUploadService {
 
     public UploadResult upload(MultipartFile file) {
         UploadFileName uploadFileName = UploadFileName.from(file.getOriginalFilename(), file.getContentType());
-        if (documentRepository.findByCanonicalName(uploadFileName.canonicalName()).isPresent()) {
+        if (documentService.findByCanonicalName(uploadFileName.canonicalName()).isPresent()) {
             throw DocumentUploadException.conflict(uploadFileName.canonicalName());
         }
 
@@ -69,49 +69,45 @@ public class DocumentUploadService {
     }
 
     public List<DocumentSummary> listDocuments() {
-        return documentRepository.findAllNotDeleted().stream()
-                .map(document -> versionRepository.findLatestByDocumentId(document.id())
+        return documentService.findAllNotDeleted().stream()
+                .map(document -> versionService.findLatestByDocumentId(document.id())
                         .map(version -> toSummary(document, version))
                         .orElseThrow(() -> new IllegalStateException("文档缺少版本记录")))
                 .toList();
     }
 
     public RetryResult retry(UUID documentId) {
-        RetryResult result = transaction.required(() -> {
-            if (documentRepository.findById(documentId).isEmpty()) {
-                throw DocumentIndexException.notFound();
-            }
-            DocumentVersionRecord version = versionRepository.findLatestByDocumentId(documentId)
-                    .orElseThrow(DocumentIndexException::notFound);
-            if (!versionRepository.updateStatus(
-                    version.id(), DocumentVersionStatus.FAILED, DocumentVersionStatus.PENDING, null)) {
-                throw DocumentIndexException.notRetryable();
-            }
-            return new RetryResult(documentId, version.id(), DocumentVersionStatus.PENDING);
-        });
+        DocumentWorkflowService.RetryTransition transition = workflowService.retryLatestFailedVersion(documentId);
+        if (transition.decision() == DocumentWorkflowService.RetryDecision.NOT_FOUND) {
+            throw DocumentIndexException.notFound();
+        }
+        if (transition.decision() == DocumentWorkflowService.RetryDecision.NOT_RETRYABLE) {
+            throw DocumentIndexException.notRetryable();
+        }
+        RetryResult result = new RetryResult(documentId, transition.versionId(), DocumentVersionStatus.PENDING);
         indexDispatcher.submit(result.versionId());
         return result;
     }
 
     private UploadResult createPendingVersion(UploadFileName uploadFileName, FileStore.StoredFile storedFile) {
-        return transaction.required(() -> {
-            Instant now = clock.instant();
-            UUID documentId = UUID.randomUUID();
-            UUID versionId = UUID.randomUUID();
-            documentRepository.insert(new DocumentRecord(documentId, uploadFileName.canonicalName(), null, null, now, now));
-            versionRepository.insert(new DocumentVersionRecord(
-                    versionId,
-                    documentId,
-                    1,
-                    storedFile.sha256(),
-                    uploadFileName.type().canonicalMimeType(),
-                    storedFile.storageKey(),
-                    DocumentVersionStatus.PENDING,
-                    null,
-                    now));
-            return new UploadResult(documentId, versionId, uploadFileName.canonicalName(), 1,
-                    DocumentVersionStatus.PENDING, storedFile.sha256(), storedFile.size(), now);
-        });
+        Instant now = clock.instant();
+        UUID documentId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        DocumentRecord document = new DocumentRecord(
+                documentId, uploadFileName.canonicalName(), null, null, now, now);
+        DocumentVersionRecord version = new DocumentVersionRecord(
+                versionId,
+                documentId,
+                1,
+                storedFile.sha256(),
+                uploadFileName.type().canonicalMimeType(),
+                storedFile.storageKey(),
+                DocumentVersionStatus.PENDING,
+                null,
+                now);
+        workflowService.createDocumentWithVersion(document, version);
+        return new UploadResult(documentId, versionId, uploadFileName.canonicalName(), 1,
+                DocumentVersionStatus.PENDING, storedFile.sha256(), storedFile.size(), now);
     }
 
     private static DocumentSummary toSummary(DocumentRecord document, DocumentVersionRecord version) {

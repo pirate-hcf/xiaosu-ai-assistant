@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.DatabaseCleanupMapper">
+    <delete id="deleteMessages">DELETE FROM messages</delete>
+    <delete id="deleteConversations">DELETE FROM conversations</delete>
+    <delete id="deleteChunks">DELETE FROM document_chunks</delete>
+    <update id="clearActiveVersions">UPDATE documents SET active_version_id = NULL</update>
+    <delete id="deleteVersions">DELETE FROM document_versions</delete>
+    <delete id="deleteDocuments">DELETE FROM documents</delete>
+    <delete id="deleteSettings">DELETE FROM app_settings</delete>
+    <select id="countDocuments" resultType="long">SELECT COUNT(*) FROM documents</select>
+    <select id="countVersions" resultType="long">SELECT COUNT(*) FROM document_versions</select>
+</mapper>

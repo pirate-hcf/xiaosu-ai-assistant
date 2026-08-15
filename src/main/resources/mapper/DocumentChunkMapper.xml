@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.DocumentChunkMapper">
+
+    <resultMap id="chunkResult" type="com.xiaosu.domain.DocumentChunkRecord">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"
+                   typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="version_id" javaType="java.util.UUID"
+                 typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="chunk_no" javaType="_int"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="locator_json" javaType="java.lang.String"/>
+            <arg column="embedding" javaType="_byte[]"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO document_chunks (
+            id, version_id, chunk_no, content, locator_json, embedding
+        ) VALUES (
+            #{id}, #{versionId}, #{chunkNo}, #{content}, #{locatorJson}, #{embedding}
+        )
+    </insert>
+
+    <select id="findById" resultMap="chunkResult">
+        SELECT * FROM document_chunks WHERE id = #{id}
+    </select>
+
+    <select id="findByVersionId" resultMap="chunkResult">
+        SELECT * FROM document_chunks
+        WHERE version_id = #{versionId}
+        ORDER BY chunk_no
+    </select>
+
+    <delete id="deleteByVersionId">
+        DELETE FROM document_chunks WHERE version_id = #{versionId}
+    </delete>
+</mapper>

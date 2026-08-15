@@ -1,4 +1,4 @@
-package com.xiaosu.persistence.exception;
+package com.xiaosu.domain;
 
 public class DuplicateRecordException extends RuntimeException {
 

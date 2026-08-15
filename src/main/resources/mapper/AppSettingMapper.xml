@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.AppSettingMapper">
+
+    <resultMap id="settingResult" type="com.xiaosu.domain.AppSettingRecord">
+        <constructor>
+            <idArg column="setting_key" javaType="java.lang.String"/>
+            <arg column="setting_value" javaType="java.lang.String"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="save">
+        INSERT INTO app_settings (setting_key, setting_value, updated_at)
+        VALUES (#{key}, #{value}, #{updatedAt})
+        ON DUPLICATE KEY UPDATE
+            setting_value = VALUES(setting_value),
+            updated_at = VALUES(updated_at)
+    </insert>
+
+    <select id="findByKey" resultMap="settingResult">
+        SELECT * FROM app_settings WHERE setting_key = #{key}
+    </select>
+</mapper>

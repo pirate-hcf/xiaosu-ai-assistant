@@ -34,18 +34,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.xiaosu.domain.DocumentRecord;
+import com.xiaosu.domain.DocumentVersionRecord;
+import com.xiaosu.domain.DocumentVersionStatus;
 import com.xiaosu.knowledge.parser.DocumentParser;
 import com.xiaosu.knowledge.parser.MarkdownDocumentParser;
 import com.xiaosu.knowledge.parser.ParsedBlock;
-import com.xiaosu.persistence.model.DocumentRecord;
-import com.xiaosu.persistence.model.DocumentVersionRecord;
-import com.xiaosu.persistence.model.DocumentVersionStatus;
-import com.xiaosu.persistence.repository.DocumentChunkRepository;
-import com.xiaosu.persistence.repository.DocumentRepository;
-import com.xiaosu.persistence.repository.DocumentVersionRepository;
+import com.xiaosu.mapper.DatabaseCleanupMapper;
+import com.xiaosu.service.DocumentChunkService;
+import com.xiaosu.service.DocumentService;
+import com.xiaosu.service.DocumentVersionService;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -82,16 +82,16 @@ class DocumentApiIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private JdbcClient jdbcClient;
+    private DatabaseCleanupMapper databaseCleanupMapper;
 
     @Autowired
-    private DocumentRepository documentRepository;
+    private DocumentService documentService;
 
     @Autowired
-    private DocumentVersionRepository versionRepository;
+    private DocumentVersionService versionService;
 
     @Autowired
-    private DocumentChunkRepository chunkRepository;
+    private DocumentChunkService chunkService;
 
     @Autowired
     private FileStore fileStore;
@@ -104,10 +104,10 @@ class DocumentApiIntegrationTest {
 
     @BeforeEach
     void resetState() throws IOException {
-        jdbcClient.sql("DELETE FROM document_chunks").update();
-        jdbcClient.sql("UPDATE documents SET active_version_id = NULL").update();
-        jdbcClient.sql("DELETE FROM document_versions").update();
-        jdbcClient.sql("DELETE FROM documents").update();
+        databaseCleanupMapper.deleteChunks();
+        databaseCleanupMapper.clearActiveVersions();
+        databaseCleanupMapper.deleteVersions();
+        databaseCleanupMapper.deleteDocuments();
         Files.createDirectories(TEST_UPLOAD_DIRECTORY);
         try (Stream<Path> paths = Files.list(TEST_UPLOAD_DIRECTORY)) {
             for (Path path : paths.toList()) {
@@ -131,7 +131,7 @@ class DocumentApiIntegrationTest {
         assertEquals(sha256(content), result.sha256());
         assertEquals(content.length, result.size());
 
-        var document = documentRepository.findById(result.documentId()).orElseThrow();
+        var document = documentService.findById(result.documentId()).orElseThrow();
         DocumentVersionRecord version = awaitStatus(result.versionId(), DocumentVersionStatus.INDEXED);
         assertEquals("员工手册.md", document.canonicalName());
         assertEquals(DocumentVersionStatus.INDEXED, version.status());
@@ -143,8 +143,8 @@ class DocumentApiIntegrationTest {
         assertTrue(fileStore.exists(version.storagePath()));
         assertFalse(response.body().contains(TEST_UPLOAD_DIRECTORY.toAbsolutePath().toString()));
         assertFalse(response.body().contains(version.storagePath()));
-        assertFalse(chunkRepository.findByVersionId(version.id()).isEmpty());
-        assertEquals(version.id(), documentRepository.findById(result.documentId()).orElseThrow().activeVersionId());
+        assertFalse(chunkService.findByVersionId(version.id()).isEmpty());
+        assertEquals(version.id(), documentService.findById(result.documentId()).orElseThrow().activeVersionId());
     }
 
     @Test
@@ -241,7 +241,7 @@ class DocumentApiIntegrationTest {
 
         DocumentVersionRecord failed = awaitStatus(uploadResult.versionId(), DocumentVersionStatus.FAILED);
         assertEquals("文档索引失败，请稍后重试", failed.errorMessage());
-        assertTrue(chunkRepository.findByVersionId(failed.id()).isEmpty());
+        assertTrue(chunkService.findByVersionId(failed.id()).isEmpty());
         assertFalse(failed.errorMessage().contains("IllegalStateException"));
 
         HttpResponse<String> retryResponse = post("/api/documents/" + uploadResult.documentId() + "/retry");
@@ -252,7 +252,7 @@ class DocumentApiIntegrationTest {
 
         DocumentVersionRecord indexed = awaitStatus(uploadResult.versionId(), DocumentVersionStatus.INDEXED);
         assertNull(indexed.errorMessage());
-        assertFalse(chunkRepository.findByVersionId(indexed.id()).isEmpty());
+        assertFalse(chunkService.findByVersionId(indexed.id()).isEmpty());
     }
 
     @Test
@@ -262,8 +262,8 @@ class DocumentApiIntegrationTest {
         UUID documentId = UUID.randomUUID();
         UUID versionId = UUID.randomUUID();
         Instant now = Instant.now();
-        documentRepository.insert(new DocumentRecord(documentId, "recovered.md", null, null, now, now));
-        versionRepository.insert(new DocumentVersionRecord(
+        documentService.insert(new DocumentRecord(documentId, "recovered.md", null, null, now, now));
+        versionService.insert(new DocumentVersionRecord(
                 versionId,
                 documentId,
                 1,
@@ -277,8 +277,8 @@ class DocumentApiIntegrationTest {
         pendingDocumentRecovery.recoverPendingVersions();
 
         awaitStatus(versionId, DocumentVersionStatus.INDEXED);
-        assertEquals(versionId, documentRepository.findById(documentId).orElseThrow().activeVersionId());
-        assertFalse(chunkRepository.findByVersionId(versionId).isEmpty());
+        assertEquals(versionId, documentService.findById(documentId).orElseThrow().activeVersionId());
+        assertFalse(chunkService.findByVersionId(versionId).isEmpty());
     }
 
     private HttpResponse<String> upload(String fileName, String contentType, byte[] content) throws Exception {
@@ -318,20 +318,20 @@ class DocumentApiIntegrationTest {
     private DocumentVersionRecord awaitStatus(UUID versionId, DocumentVersionStatus expected) throws Exception {
         long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
         while (System.nanoTime() < deadline) {
-            DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+            DocumentVersionRecord version = versionService.findById(versionId).orElseThrow();
             if (version.status() == expected) {
                 return version;
             }
             Thread.sleep(50);
         }
-        DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+        DocumentVersionRecord version = versionService.findById(versionId).orElseThrow();
         throw new AssertionError("Expected " + expected + " but was " + version.status());
     }
 
     private DocumentVersionRecord awaitTerminal(UUID versionId) throws Exception {
         long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
         while (System.nanoTime() < deadline) {
-            DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+            DocumentVersionRecord version = versionService.findById(versionId).orElseThrow();
             if (version.status() != DocumentVersionStatus.PENDING) {
                 return version;
             }
@@ -344,7 +344,9 @@ class DocumentApiIntegrationTest {
         if (!table.equals("documents") && !table.equals("document_versions")) {
             throw new IllegalArgumentException("Unexpected table");
         }
-        return jdbcClient.sql("SELECT COUNT(*) FROM " + table).query(Long.class).single();
+        return table.equals("documents")
+                ? databaseCleanupMapper.countDocuments()
+                : databaseCleanupMapper.countVersions();
     }
 
     private long storedFileCount() throws IOException {

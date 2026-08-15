@@ -19,13 +19,11 @@ import com.xiaosu.knowledge.embedding.EmbeddingGatewayException;
 import com.xiaosu.knowledge.embedding.FloatVectorCodec;
 import com.xiaosu.knowledge.parser.DocumentParseException;
 import com.xiaosu.knowledge.parser.DocumentParser;
-import com.xiaosu.persistence.PersistenceTransaction;
-import com.xiaosu.persistence.model.DocumentChunkRecord;
-import com.xiaosu.persistence.model.DocumentVersionRecord;
-import com.xiaosu.persistence.model.DocumentVersionStatus;
-import com.xiaosu.persistence.repository.DocumentChunkRepository;
-import com.xiaosu.persistence.repository.DocumentRepository;
-import com.xiaosu.persistence.repository.DocumentVersionRepository;
+import com.xiaosu.domain.DocumentChunkRecord;
+import com.xiaosu.domain.DocumentVersionRecord;
+import com.xiaosu.domain.DocumentVersionStatus;
+import com.xiaosu.service.DocumentVersionService;
+import com.xiaosu.service.DocumentWorkflowService;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,10 +33,8 @@ public class DocumentIndexService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DocumentIndexService.class);
     private static final int MAX_ERROR_LENGTH = 1000;
 
-    private final DocumentVersionRepository versionRepository;
-    private final DocumentChunkRepository chunkRepository;
-    private final DocumentRepository documentRepository;
-    private final PersistenceTransaction transaction;
+    private final DocumentVersionService versionService;
+    private final DocumentWorkflowService workflowService;
     private final FileStore fileStore;
     private final List<DocumentParser> parsers;
     private final Chunker chunker;
@@ -47,19 +43,15 @@ public class DocumentIndexService {
     private final Clock clock = Clock.systemUTC();
 
     public DocumentIndexService(
-            DocumentVersionRepository versionRepository,
-            DocumentChunkRepository chunkRepository,
-            DocumentRepository documentRepository,
-            PersistenceTransaction transaction,
+            DocumentVersionService versionService,
+            DocumentWorkflowService workflowService,
             FileStore fileStore,
             List<DocumentParser> parsers,
             Chunker chunker,
             ObjectProvider<EmbeddingGateway> embeddingGateways,
             ObjectMapper objectMapper) {
-        this.versionRepository = versionRepository;
-        this.chunkRepository = chunkRepository;
-        this.documentRepository = documentRepository;
-        this.transaction = transaction;
+        this.versionService = versionService;
+        this.workflowService = workflowService;
         this.fileStore = fileStore;
         this.parsers = List.copyOf(parsers);
         this.chunker = chunker;
@@ -70,13 +62,14 @@ public class DocumentIndexService {
     @Async("documentIndexExecutor")
     public void index(UUID versionId) {
         try {
-            DocumentVersionRecord version = versionRepository.findById(versionId).orElse(null);
+            DocumentVersionRecord version = versionService.findById(versionId).orElse(null);
             if (version == null || version.status() != DocumentVersionStatus.PENDING) {
                 return;
             }
             List<PreparedChunk> chunks = prepareChunks(version);
-            activate(version, chunks);
-            LOGGER.info("Document version indexed: versionId={}, chunks={}", versionId, chunks.size());
+            if (activate(version, chunks)) {
+                LOGGER.info("Document version indexed: versionId={}, chunks={}", versionId, chunks.size());
+            }
         } catch (Exception exception) {
             String summary = safeSummary(exception);
             markFailed(versionId, summary);
@@ -118,43 +111,22 @@ public class DocumentIndexService {
         }
     }
 
-    private void activate(DocumentVersionRecord version, List<PreparedChunk> chunks) {
-        transaction.required(() -> {
-            DocumentVersionRecord locked = versionRepository.findByIdForUpdate(version.id()).orElse(null);
-            if (locked == null || locked.status() != DocumentVersionStatus.PENDING) {
-                return;
-            }
-            chunkRepository.deleteByVersionId(version.id());
-            for (PreparedChunk chunk : chunks) {
-                chunkRepository.insert(new DocumentChunkRecord(
+    private boolean activate(DocumentVersionRecord version, List<PreparedChunk> chunks) {
+        List<DocumentChunkRecord> records = chunks.stream()
+                .map(chunk -> new DocumentChunkRecord(
                         UUID.randomUUID(),
                         version.id(),
                         chunk.chunkNo(),
                         chunk.content(),
                         chunk.locatorJson(),
-                        chunk.embedding()));
-            }
-            if (!versionRepository.updateStatus(
-                    version.id(), DocumentVersionStatus.PENDING, DocumentVersionStatus.INDEXED, null)) {
-                throw new IllegalStateException("Document version status changed while indexing");
-            }
-            if (!documentRepository.setActiveVersion(version.documentId(), version.id(), clock.instant())) {
-                throw new IllegalStateException("Document disappeared while indexing");
-            }
-        });
+                        chunk.embedding()))
+                .toList();
+        return workflowService.activateVersion(version.id(), records, clock.instant());
     }
 
     private void markFailed(UUID versionId, String summary) {
         try {
-            transaction.required(() -> {
-                DocumentVersionRecord locked = versionRepository.findByIdForUpdate(versionId).orElse(null);
-                if (locked == null || locked.status() != DocumentVersionStatus.PENDING) {
-                    return;
-                }
-                chunkRepository.deleteByVersionId(versionId);
-                versionRepository.updateStatus(
-                        versionId, DocumentVersionStatus.PENDING, DocumentVersionStatus.FAILED, summary);
-            });
+            workflowService.markVersionFailed(versionId, summary);
         } catch (RuntimeException persistenceFailure) {
             LOGGER.error("Could not persist indexing failure: versionId={}", versionId);
         }

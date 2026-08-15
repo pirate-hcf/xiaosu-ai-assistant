@@ -22,6 +22,7 @@
         <commonmark.version>0.29.0</commonmark.version>
         <pdfbox.version>3.0.8</pdfbox.version>
         <spring-ai.version>2.0.0</spring-ai.version>
+        <mybatis-spring-boot.version>4.0.0</mybatis-spring-boot.version>
     </properties>
 
     <dependencyManagement>
@@ -42,8 +43,9 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>${mybatis-spring-boot.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

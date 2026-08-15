@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.ConversationMapper">
+
+    <resultMap id="conversationResult" type="com.xiaosu.domain.ConversationRecord">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"
+                   typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="session_key" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="last_active_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO conversations (id, session_key, created_at, last_active_at)
+        VALUES (#{id}, #{sessionKey}, #{createdAt}, #{lastActiveAt})
+    </insert>
+
+    <select id="findBySessionKey" resultMap="conversationResult">
+        SELECT * FROM conversations WHERE session_key = #{sessionKey}
+    </select>
+
+    <select id="countBySessionKey" resultType="long">
+        SELECT COUNT(*) FROM conversations WHERE session_key = #{sessionKey}
+    </select>
+</mapper>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.MessageMapper">
+
+    <resultMap id="messageResult" type="com.xiaosu.domain.MessageRecord">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"
+                   typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="conversation_id" javaType="java.util.UUID"
+                 typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="platform_message_id" javaType="java.lang.String"/>
+            <arg column="user_text" javaType="java.lang.String"/>
+            <arg column="assistant_text" javaType="java.lang.String"/>
+            <arg column="tool_calls_json" javaType="java.lang.String"/>
+            <arg column="citations_json" javaType="java.lang.String"/>
+            <arg column="prompt_tokens" javaType="java.lang.Integer"/>
+            <arg column="completion_tokens" javaType="java.lang.Integer"/>
+            <arg column="status" javaType="com.xiaosu.domain.MessageStatus"
+                 typeHandler="com.xiaosu.mapper.typehandler.MessageStatusTypeHandler"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO messages (
+            id, conversation_id, platform_message_id, user_text, assistant_text,
+            tool_calls_json, citations_json, prompt_tokens, completion_tokens,
+            status, trace_id, created_at
+        ) VALUES (
+            #{id}, #{conversationId}, #{platformMessageId}, #{userText},
+            #{assistantText,jdbcType=LONGVARCHAR}, #{toolCallsJson,jdbcType=VARCHAR},
+            #{citationsJson,jdbcType=VARCHAR}, #{promptTokens,jdbcType=INTEGER},
+            #{completionTokens,jdbcType=INTEGER},
+            #{status,typeHandler=com.xiaosu.mapper.typehandler.MessageStatusTypeHandler},
+            #{traceId}, #{createdAt}
+        )
+    </insert>
+
+    <select id="findByPlatformMessageId" resultMap="messageResult">
+        SELECT * FROM messages WHERE platform_message_id = #{platformMessageId}
+    </select>
+
+    <select id="countByPlatformMessageId" resultType="long">
+        SELECT COUNT(*) FROM messages WHERE platform_message_id = #{platformMessageId}
+    </select>
+</mapper>

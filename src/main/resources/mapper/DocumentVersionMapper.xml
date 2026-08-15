@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaosu.mapper.DocumentVersionMapper">
+
+    <resultMap id="versionResult" type="com.xiaosu.domain.DocumentVersionRecord">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"
+                   typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="document_id" javaType="java.util.UUID"
+                 typeHandler="com.xiaosu.mapper.typehandler.UuidTypeHandler"/>
+            <arg column="version_no" javaType="_int"/>
+            <arg column="sha256" javaType="java.lang.String"/>
+            <arg column="mime_type" javaType="java.lang.String"/>
+            <arg column="storage_path" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.xiaosu.domain.DocumentVersionStatus"
+                 typeHandler="com.xiaosu.mapper.typehandler.DocumentVersionStatusTypeHandler"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO document_versions (
+            id, document_id, version_no, sha256, mime_type, storage_path,
+            status, error_message, created_at
+        ) VALUES (
+            #{id}, #{documentId}, #{versionNo}, #{sha256}, #{mimeType}, #{storagePath},
+            #{status,typeHandler=com.xiaosu.mapper.typehandler.DocumentVersionStatusTypeHandler},
+            #{errorMessage,jdbcType=VARCHAR}, #{createdAt}
+        )
+    </insert>
+
+    <select id="findById" resultMap="versionResult">
+        SELECT * FROM document_versions WHERE id = #{id}
+    </select>
+
+    <select id="findByIdForUpdate" resultMap="versionResult">
+        SELECT * FROM document_versions WHERE id = #{id} FOR UPDATE
+    </select>
+
+    <select id="findByStatus" resultMap="versionResult">
+        SELECT * FROM document_versions
+        WHERE status = #{status,typeHandler=com.xiaosu.mapper.typehandler.DocumentVersionStatusTypeHandler}
+        ORDER BY created_at, id
+    </select>
+
+    <select id="findByDocumentId" resultMap="versionResult">
+        SELECT * FROM document_versions
+        WHERE document_id = #{documentId}
+        ORDER BY version_no
+    </select>
+
+    <select id="findLatestByDocumentId" resultMap="versionResult">
+        SELECT * FROM document_versions
+        WHERE document_id = #{documentId}
+        ORDER BY version_no DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateStatus">
+        UPDATE document_versions
+        SET status = #{newStatus,typeHandler=com.xiaosu.mapper.typehandler.DocumentVersionStatusTypeHandler},
+            error_message = #{errorMessage,jdbcType=VARCHAR}
+        WHERE id = #{id}
+          AND status = #{expectedStatus,typeHandler=com.xiaosu.mapper.typehandler.DocumentVersionStatusTypeHandler}
+    </update>
+</mapper>
