@@ -59,4 +59,10 @@ public class DocumentChunkRepository {
                 .query(PersistenceRowMappers.DOCUMENT_CHUNK)
                 .list();
     }
+
+    public int deleteByVersionId(UUID versionId) {
+        return jdbcClient.sql("DELETE FROM document_chunks WHERE version_id = :versionId")
+                .param("versionId", versionId.toString())
+                .update();
+    }
 }

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import com.xiaosu.persistence.exception.DuplicateRecordException;
 import com.xiaosu.persistence.model.DocumentVersionRecord;
+import com.xiaosu.persistence.model.DocumentVersionStatus;
 
 @Repository
 public class DocumentVersionRepository {
@@ -56,6 +57,24 @@ public class DocumentVersionRepository {
                 .optional();
     }
 
+    public Optional<DocumentVersionRecord> findByIdForUpdate(UUID id) {
+        return jdbcClient.sql("SELECT * FROM document_versions WHERE id = :id FOR UPDATE")
+                .param("id", id.toString())
+                .query(PersistenceRowMappers.DOCUMENT_VERSION)
+                .optional();
+    }
+
+    public List<DocumentVersionRecord> findByStatus(DocumentVersionStatus status) {
+        return jdbcClient.sql("""
+                SELECT * FROM document_versions
+                WHERE status = :status
+                ORDER BY created_at, id
+                """)
+                .param("status", status.databaseValue())
+                .query(PersistenceRowMappers.DOCUMENT_VERSION)
+                .list();
+    }
+
     public List<DocumentVersionRecord> findByDocumentId(UUID documentId) {
         return jdbcClient.sql("""
                 SELECT * FROM document_versions
@@ -77,5 +96,23 @@ public class DocumentVersionRepository {
                 .param("documentId", documentId.toString())
                 .query(PersistenceRowMappers.DOCUMENT_VERSION)
                 .optional();
+    }
+
+    public boolean updateStatus(
+            UUID id,
+            DocumentVersionStatus expectedStatus,
+            DocumentVersionStatus newStatus,
+            String errorMessage) {
+        int updated = jdbcClient.sql("""
+                UPDATE document_versions
+                SET status = :newStatus, error_message = :errorMessage
+                WHERE id = :id AND status = :expectedStatus
+                """)
+                .param("newStatus", newStatus.databaseValue())
+                .param("errorMessage", errorMessage, Types.VARCHAR)
+                .param("id", id.toString())
+                .param("expectedStatus", expectedStatus.databaseValue())
+                .update();
+        return updated == 1;
     }
 }

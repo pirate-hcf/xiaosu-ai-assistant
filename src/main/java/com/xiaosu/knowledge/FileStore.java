@@ -75,6 +75,10 @@ public class FileStore {
         return Files.isRegularFile(resolve(storageKey));
     }
 
+    public InputStream open(String storageKey) throws IOException {
+        return Files.newInputStream(resolve(storageKey), StandardOpenOption.READ);
+    }
+
     public void deleteQuietly(String storageKey) {
         try {
             Files.deleteIfExists(resolve(storageKey));

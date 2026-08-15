@@ -19,6 +19,13 @@ public class DocumentApiExceptionHandler {
         return error(exception.status(), exception.code(), exception.getMessage(), request);
     }
 
+    @ExceptionHandler(DocumentIndexException.class)
+    public ResponseEntity<ApiError> indexError(
+            DocumentIndexException exception,
+            HttpServletRequest request) {
+        return error(exception.status(), exception.code(), exception.getMessage(), request);
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> uploadTooLarge(
             MaxUploadSizeExceededException exception,

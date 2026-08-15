@@ -3,6 +3,7 @@ package com.xiaosu.knowledge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -16,20 +17,33 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.ActiveProfiles;
 
+import com.xiaosu.knowledge.parser.DocumentParser;
+import com.xiaosu.knowledge.parser.MarkdownDocumentParser;
+import com.xiaosu.knowledge.parser.ParsedBlock;
+import com.xiaosu.persistence.model.DocumentRecord;
 import com.xiaosu.persistence.model.DocumentVersionRecord;
 import com.xiaosu.persistence.model.DocumentVersionStatus;
+import com.xiaosu.persistence.repository.DocumentChunkRepository;
 import com.xiaosu.persistence.repository.DocumentRepository;
 import com.xiaosu.persistence.repository.DocumentVersionRepository;
 
@@ -48,6 +62,8 @@ import tools.jackson.databind.ObjectMapper;
                 "spring.servlet.multipart.max-file-size=10MB",
                 "spring.servlet.multipart.max-request-size=11MB"
         })
+@ActiveProfiles("fake-embedding")
+@Import(DocumentApiIntegrationTest.ParserFailureConfiguration.class)
 class DocumentApiIntegrationTest {
 
     private static final Path TEST_UPLOAD_DIRECTORY = Path.of("target/test-uploads");
@@ -75,7 +91,16 @@ class DocumentApiIntegrationTest {
     private DocumentVersionRepository versionRepository;
 
     @Autowired
+    private DocumentChunkRepository chunkRepository;
+
+    @Autowired
     private FileStore fileStore;
+
+    @Autowired
+    private PendingDocumentRecovery pendingDocumentRecovery;
+
+    @Autowired
+    private FailOnceMarkdownParser failOnceMarkdownParser;
 
     @BeforeEach
     void resetState() throws IOException {
@@ -92,7 +117,7 @@ class DocumentApiIntegrationTest {
     }
 
     @Test
-    void markdownUploadCreatesPendingVersionAndRandomPhysicalFile() throws Exception {
+    void markdownUploadMovesFromPendingToIndexedAndUsesRandomPhysicalFile() throws Exception {
         byte[] content = "# 员工手册\n\n年假应提前申请。\n".getBytes(StandardCharsets.UTF_8);
 
         HttpResponse<String> response = upload("C:\\fakepath\\员工手册.md", "text/markdown", content);
@@ -107,9 +132,9 @@ class DocumentApiIntegrationTest {
         assertEquals(content.length, result.size());
 
         var document = documentRepository.findById(result.documentId()).orElseThrow();
-        DocumentVersionRecord version = versionRepository.findById(result.versionId()).orElseThrow();
+        DocumentVersionRecord version = awaitStatus(result.versionId(), DocumentVersionStatus.INDEXED);
         assertEquals("员工手册.md", document.canonicalName());
-        assertEquals(DocumentVersionStatus.PENDING, version.status());
+        assertEquals(DocumentVersionStatus.INDEXED, version.status());
         assertEquals("text/markdown", version.mimeType());
         assertEquals(result.sha256(), version.sha256());
         assertTrue(version.storagePath().matches("[0-9a-f-]{36}"));
@@ -118,13 +143,18 @@ class DocumentApiIntegrationTest {
         assertTrue(fileStore.exists(version.storagePath()));
         assertFalse(response.body().contains(TEST_UPLOAD_DIRECTORY.toAbsolutePath().toString()));
         assertFalse(response.body().contains(version.storagePath()));
+        assertFalse(chunkRepository.findByVersionId(version.id()).isEmpty());
+        assertEquals(version.id(), documentRepository.findById(result.documentId()).orElseThrow().activeVersionId());
     }
 
     @Test
-    void listReturnsPendingMetadataWithoutStoragePath() throws Exception {
+    void listReturnsIndexedMetadataWithoutStoragePath() throws Exception {
         HttpResponse<String> uploadResponse = upload(
                 "policy.txt", "text/plain", "差旅报销制度".getBytes(StandardCharsets.UTF_8));
         assertEquals(202, uploadResponse.statusCode());
+        DocumentUploadService.UploadResult uploadResult = objectMapper.readValue(
+                uploadResponse.body(), DocumentUploadService.UploadResult.class);
+        awaitStatus(uploadResult.versionId(), DocumentVersionStatus.INDEXED);
 
         HttpResponse<String> response = get("/api/documents");
 
@@ -132,7 +162,7 @@ class DocumentApiIntegrationTest {
         List<DocumentUploadService.DocumentSummary> documents = objectMapper.readValue(response.body(), DOCUMENT_LIST);
         assertEquals(1, documents.size());
         assertEquals("policy.txt", documents.getFirst().fileName());
-        assertEquals(DocumentVersionStatus.PENDING, documents.getFirst().status());
+        assertEquals(DocumentVersionStatus.INDEXED, documents.getFirst().status());
         assertNotNull(documents.getFirst().latestVersionId());
         assertFalse(response.body().contains("storagePath"));
         assertFalse(response.body().contains(TEST_UPLOAD_DIRECTORY.toAbsolutePath().toString()));
@@ -140,11 +170,17 @@ class DocumentApiIntegrationTest {
 
     @Test
     void markdownTextAndPdfAreAccepted() throws Exception {
-        assertEquals(202, upload("guide.md", "application/octet-stream", "# Guide".getBytes(StandardCharsets.UTF_8))
-                .statusCode());
-        assertEquals(202, upload("faq.txt", "text/plain", "FAQ".getBytes(StandardCharsets.UTF_8)).statusCode());
-        assertEquals(202, upload("rules.pdf", "application/pdf", "%PDF-1.4\n%%EOF".getBytes(StandardCharsets.US_ASCII))
-                .statusCode());
+        HttpResponse<String> markdown = upload(
+                "guide.md", "application/octet-stream", "# Guide".getBytes(StandardCharsets.UTF_8));
+        HttpResponse<String> text = upload("faq.txt", "text/plain", "FAQ".getBytes(StandardCharsets.UTF_8));
+        HttpResponse<String> pdf = upload(
+                "rules.pdf", "application/pdf", "%PDF-1.4\n%%EOF".getBytes(StandardCharsets.US_ASCII));
+        assertEquals(202, markdown.statusCode());
+        assertEquals(202, text.statusCode());
+        assertEquals(202, pdf.statusCode());
+        awaitTerminal(objectMapper.readValue(markdown.body(), DocumentUploadService.UploadResult.class).versionId());
+        awaitTerminal(objectMapper.readValue(text.body(), DocumentUploadService.UploadResult.class).versionId());
+        awaitTerminal(objectMapper.readValue(pdf.body(), DocumentUploadService.UploadResult.class).versionId());
         assertEquals(3L, count("documents"));
         assertEquals(3L, count("document_versions"));
     }
@@ -178,7 +214,11 @@ class DocumentApiIntegrationTest {
 
     @Test
     void duplicateCanonicalNameReturns409AndDoesNotLeaveSecondFile() throws Exception {
-        assertEquals(202, upload("same.md", "text/markdown", "first".getBytes(StandardCharsets.UTF_8)).statusCode());
+        HttpResponse<String> first = upload("same.md", "text/markdown", "first".getBytes(StandardCharsets.UTF_8));
+        assertEquals(202, first.statusCode());
+        awaitStatus(
+                objectMapper.readValue(first.body(), DocumentUploadService.UploadResult.class).versionId(),
+                DocumentVersionStatus.INDEXED);
 
         HttpResponse<String> response = upload("same.md", "text/markdown", "second".getBytes(StandardCharsets.UTF_8));
 
@@ -189,6 +229,56 @@ class DocumentApiIntegrationTest {
         assertEquals(1L, count("documents"));
         assertEquals(1L, count("document_versions"));
         assertEquals(1L, storedFileCount());
+    }
+
+    @Test
+    void parserFailureCreatesNoChunksAndRetryIndexesTheSameVersion() throws Exception {
+        failOnceMarkdownParser.failNext();
+        HttpResponse<String> uploadResponse = upload(
+                "retry.md", "text/markdown", "# Retry\n\nThis succeeds on retry.".getBytes(StandardCharsets.UTF_8));
+        DocumentUploadService.UploadResult uploadResult = objectMapper.readValue(
+                uploadResponse.body(), DocumentUploadService.UploadResult.class);
+
+        DocumentVersionRecord failed = awaitStatus(uploadResult.versionId(), DocumentVersionStatus.FAILED);
+        assertEquals("文档索引失败，请稍后重试", failed.errorMessage());
+        assertTrue(chunkRepository.findByVersionId(failed.id()).isEmpty());
+        assertFalse(failed.errorMessage().contains("IllegalStateException"));
+
+        HttpResponse<String> retryResponse = post("/api/documents/" + uploadResult.documentId() + "/retry");
+        assertEquals(202, retryResponse.statusCode());
+        DocumentUploadService.RetryResult retryResult = objectMapper.readValue(
+                retryResponse.body(), DocumentUploadService.RetryResult.class);
+        assertEquals(DocumentVersionStatus.PENDING, retryResult.status());
+
+        DocumentVersionRecord indexed = awaitStatus(uploadResult.versionId(), DocumentVersionStatus.INDEXED);
+        assertNull(indexed.errorMessage());
+        assertFalse(chunkRepository.findByVersionId(indexed.id()).isEmpty());
+    }
+
+    @Test
+    void recoveryResubmitsAnExistingPendingVersion() throws Exception {
+        byte[] content = "# Recovered\n\nPending work survives restart.".getBytes(StandardCharsets.UTF_8);
+        FileStore.StoredFile storedFile = fileStore.store(new java.io.ByteArrayInputStream(content));
+        UUID documentId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        Instant now = Instant.now();
+        documentRepository.insert(new DocumentRecord(documentId, "recovered.md", null, null, now, now));
+        versionRepository.insert(new DocumentVersionRecord(
+                versionId,
+                documentId,
+                1,
+                storedFile.sha256(),
+                "text/markdown",
+                storedFile.storageKey(),
+                DocumentVersionStatus.PENDING,
+                null,
+                now));
+
+        pendingDocumentRecovery.recoverPendingVersions();
+
+        awaitStatus(versionId, DocumentVersionStatus.INDEXED);
+        assertEquals(versionId, documentRepository.findById(documentId).orElseThrow().activeVersionId());
+        assertFalse(chunkRepository.findByVersionId(versionId).isEmpty());
     }
 
     private HttpResponse<String> upload(String fileName, String contentType, byte[] content) throws Exception {
@@ -217,6 +307,39 @@ class DocumentApiIntegrationTest {
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
+    private HttpResponse<String> post(String path) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(10))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private DocumentVersionRecord awaitStatus(UUID versionId, DocumentVersionStatus expected) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (System.nanoTime() < deadline) {
+            DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+            if (version.status() == expected) {
+                return version;
+            }
+            Thread.sleep(50);
+        }
+        DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+        throw new AssertionError("Expected " + expected + " but was " + version.status());
+    }
+
+    private DocumentVersionRecord awaitTerminal(UUID versionId) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (System.nanoTime() < deadline) {
+            DocumentVersionRecord version = versionRepository.findById(versionId).orElseThrow();
+            if (version.status() != DocumentVersionStatus.PENDING) {
+                return version;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("Document version remained pending: " + versionId);
+    }
+
     private long count(String table) {
         if (!table.equals("documents") && !table.equals("document_versions")) {
             throw new IllegalArgumentException("Unexpected table");
@@ -232,5 +355,38 @@ class DocumentApiIntegrationTest {
 
     private static String sha256(byte[] content) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+    }
+
+    @TestConfiguration
+    static class ParserFailureConfiguration {
+
+        @Bean
+        FailOnceMarkdownParser failOnceMarkdownParser() {
+            return new FailOnceMarkdownParser();
+        }
+    }
+
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    static final class FailOnceMarkdownParser implements DocumentParser {
+
+        private final MarkdownDocumentParser delegate = new MarkdownDocumentParser();
+        private final AtomicBoolean failNext = new AtomicBoolean();
+
+        void failNext() {
+            failNext.set(true);
+        }
+
+        @Override
+        public boolean supports(String mimeType) {
+            return delegate.supports(mimeType);
+        }
+
+        @Override
+        public List<ParsedBlock> parse(java.io.InputStream inputStream) {
+            if (failNext.compareAndSet(true, false)) {
+                throw new IllegalStateException("sensitive parser diagnostics");
+            }
+            return delegate.parse(inputStream);
+        }
     }
 }

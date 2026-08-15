@@ -6,6 +6,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+
+@Component
+@Profile("fake-embedding")
+@Primary
 public final class FakeEmbeddingGateway implements EmbeddingGateway {
 
     private static final int DIMENSIONS = 8;

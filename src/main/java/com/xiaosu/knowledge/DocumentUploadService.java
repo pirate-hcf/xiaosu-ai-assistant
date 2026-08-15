@@ -24,17 +24,20 @@ public class DocumentUploadService {
     private final DocumentVersionRepository versionRepository;
     private final PersistenceTransaction transaction;
     private final FileStore fileStore;
+    private final DocumentIndexDispatcher indexDispatcher;
     private final Clock clock;
 
     public DocumentUploadService(
             DocumentRepository documentRepository,
             DocumentVersionRepository versionRepository,
             PersistenceTransaction transaction,
-            FileStore fileStore) {
+            FileStore fileStore,
+            DocumentIndexDispatcher indexDispatcher) {
         this.documentRepository = documentRepository;
         this.versionRepository = versionRepository;
         this.transaction = transaction;
         this.fileStore = fileStore;
+        this.indexDispatcher = indexDispatcher;
         this.clock = Clock.systemUTC();
     }
 
@@ -53,7 +56,9 @@ public class DocumentUploadService {
 
         try {
             uploadFileName.type().validateContent(storedFile.prefix());
-            return createPendingVersion(uploadFileName, storedFile);
+            UploadResult result = createPendingVersion(uploadFileName, storedFile);
+            indexDispatcher.submit(result.versionId());
+            return result;
         } catch (DuplicateRecordException exception) {
             fileStore.deleteQuietly(storedFile.storageKey());
             throw DocumentUploadException.conflict(uploadFileName.canonicalName());
@@ -69,6 +74,23 @@ public class DocumentUploadService {
                         .map(version -> toSummary(document, version))
                         .orElseThrow(() -> new IllegalStateException("文档缺少版本记录")))
                 .toList();
+    }
+
+    public RetryResult retry(UUID documentId) {
+        RetryResult result = transaction.required(() -> {
+            if (documentRepository.findById(documentId).isEmpty()) {
+                throw DocumentIndexException.notFound();
+            }
+            DocumentVersionRecord version = versionRepository.findLatestByDocumentId(documentId)
+                    .orElseThrow(DocumentIndexException::notFound);
+            if (!versionRepository.updateStatus(
+                    version.id(), DocumentVersionStatus.FAILED, DocumentVersionStatus.PENDING, null)) {
+                throw DocumentIndexException.notRetryable();
+            }
+            return new RetryResult(documentId, version.id(), DocumentVersionStatus.PENDING);
+        });
+        indexDispatcher.submit(result.versionId());
+        return result;
     }
 
     private UploadResult createPendingVersion(UploadFileName uploadFileName, FileStore.StoredFile storedFile) {
@@ -128,5 +150,8 @@ public class DocumentUploadService {
             String errorMessage,
             Instant createdAt,
             Instant updatedAt) {
+    }
+
+    public record RetryResult(UUID documentId, UUID versionId, DocumentVersionStatus status) {
     }
 }
